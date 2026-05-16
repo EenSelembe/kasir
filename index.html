@@ -15,10 +15,6 @@ body {
   color: white;
 }
 
-h2 {
-  margin-top: 20px;
-}
-
 input, button {
   width: 100%;
   padding: 12px;
@@ -33,14 +29,10 @@ input {
   color: white;
 }
 
-button {
-  background: #00c853;
-  color: white;
-}
-
+button { background: #00c853; color: white; }
+.scan { background: #2196f3; }
 .edit { background: orange; }
 .hapus { background: red; }
-.scan { background: #2196f3; }
 
 .card {
   background: #1e1e1e;
@@ -54,7 +46,6 @@ button {
   padding: 6px 10px;
   margin-top: 5px;
   margin-right: 5px;
-  font-size: 14px;
 }
 
 #reader {
@@ -69,16 +60,19 @@ button {
 <h2>📦 Input Barang</h2>
 
 <input type="text" id="nama" placeholder="Nama Barang">
-<input type="text" id="barcode" placeholder="Barcode">
+
+<input type="text" id="barcode" placeholder="Scan Barcode" readonly>
+<button class="scan" onclick="scanBarcodeInput()">📷 Scan untuk Barcode</button>
+
 <input type="number" id="harga" placeholder="Harga Jual">
 
 <button onclick="simpanData()">💾 Simpan Data</button>
 
 <h2>🔍 Cari Barang</h2>
 
-<input type="text" id="cari" placeholder="Ketik nama / scan barcode" oninput="cariData()">
+<input type="text" id="cari" placeholder="Cari nama / barcode" oninput="cariData()">
 
-<button class="scan" onclick="startScan()">📷 Scan Barcode</button>
+<button class="scan" onclick="startScanCari()">📷 Scan untuk Cari</button>
 
 <div id="reader"></div>
 
@@ -101,7 +95,7 @@ function tampilkan(list = data) {
     html += `
       <div class="card">
         <b>${d.nama}</b><br>
-        Barcode: ${d.barcode}<br>
+        Barcode: ${d.barcode || "-"}<br>
         Harga: Rp ${Number(d.harga).toLocaleString()}<br>
 
         <button class="btn-kecil edit" onclick="editData(${i})">Edit</button>
@@ -118,8 +112,8 @@ function simpanData() {
   let barcode = document.getElementById("barcode").value.trim();
   let harga = document.getElementById("harga").value;
 
-  if (!nama || !barcode || !harga) {
-    alert("⚠️ Semua data wajib diisi!");
+  if (!nama || !harga) {
+    alert("⚠️ Nama dan harga wajib diisi!");
     return;
   }
 
@@ -170,7 +164,23 @@ function cariData() {
   tampilkan(hasil);
 }
 
-function startScan() {
+// SCAN UNTUK ISI BARCODE
+function scanBarcodeInput() {
+  mulaiScan((hasil) => {
+    document.getElementById("barcode").value = hasil;
+  });
+}
+
+// SCAN UNTUK CARI
+function startScanCari() {
+  mulaiScan((hasil) => {
+    document.getElementById("cari").value = hasil;
+    cariData();
+  });
+}
+
+// FUNGSI SCAN UMUM
+function mulaiScan(callback) {
   if (scanner) {
     scanner.stop();
     document.getElementById("reader").innerHTML = "";
@@ -182,7 +192,7 @@ function startScan() {
 
   Html5Qrcode.getCameras().then(devices => {
     if (devices.length === 0) {
-      alert("❌ Kamera tidak ditemukan");
+      alert("❌ Kamera tidak tersedia");
       return;
     }
 
@@ -190,21 +200,17 @@ function startScan() {
 
     scanner.start(
       cameraId,
-      {
-        fps: 10,
-        qrbox: 250
-      },
+      { fps: 10, qrbox: 250 },
       (decodedText) => {
-        document.getElementById("cari").value = decodedText;
-        cariData();
+        callback(decodedText);
 
         scanner.stop();
         document.getElementById("reader").innerHTML = "";
         scanner = null;
       }
     );
-  }).catch(err => {
-    alert("❌ Kamera gagal dibuka!\n\nSolusi:\n- Gunakan Chrome\n- Aktifkan izin kamera\n- Gunakan HTTPS / hosting");
+  }).catch(() => {
+    alert("❌ Kamera gagal dibuka!\nGunakan Chrome & HTTPS");
   });
 }
 
@@ -212,4 +218,4 @@ tampilkan();
 </script>
 
 </body>
-  </html>
+</html>
