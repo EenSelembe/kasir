@@ -1,39 +1,102 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kasir Online</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kasir Online + Scan</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+body {
+  font-family: Arial;
+  padding: 15px;
+  background: #121212;
+  color: white;
+}
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin: 5px 0;
+  font-size: 16px;
+  border-radius: 6px;
+  border: none;
+}
+
+input {
+  background: #1e1e1e;
+  color: white;
+}
+
+button { background: #00c853; color: white; }
+.scan { background: #2196f3; }
+.edit { background: orange; }
+.hapus { background: red; }
+
+.card {
+  background: #1e1e1e;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 8px;
+}
+
+.btn-kecil {
+  width: auto;
+  padding: 6px 10px;
+  margin-top: 5px;
+  margin-right: 5px;
+}
+
+#reader {
+  width: 100%;
+  margin-top: 10px;
+}
+</style>
 </head>
 
-<body style="font-family:Arial; padding:20px">
+<body>
 
 <h2>📦 Input Barang</h2>
 
-<input id="nama" placeholder="Nama barang"><br><br>
-<input id="barcode" placeholder="Barcode (boleh kosong)"><br><br>
-<input id="harga" placeholder="Harga"><br><br>
+<input type="text" id="nama" placeholder="Nama Barang">
 
-<button onclick="tambah()">Simpan</button>
+<input type="text" id="barcode" placeholder="Scan Barcode" readonly>
+<button class="scan" onclick="scanBarcodeInput()">📷 Scan untuk Barcode</button>
 
-<hr>
+<input type="number" id="harga" placeholder="Harga Jual">
+
+<button onclick="simpanData()">💾 Simpan Data</button>
 
 <h2>🔍 Cari Barang</h2>
 
-<input id="cari" placeholder="Nama / barcode"><br><br>
-<button onclick="cari()">Cari</button>
+<input type="text" id="cari" placeholder="Cari nama / barcode" oninput="cariData()">
 
-<p id="hasil"></p>
+<button class="scan" onclick="startScanCari()">📷 Scan untuk Cari</button>
+
+<div id="reader"></div>
+
+<h2>📋 Data Barang</h2>
+<div id="list"></div>
 
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDmdbfP_OyG_PzMlsPUghbH13D5u2o6DhM",
   authDomain: "een-store-atk.firebaseapp.com",
   projectId: "een-store-atk",
-  storageBucket: "een-store-atk.firebasestorage.app",
+  storageBucket: "een-store-atk.appspot.com",
   messagingSenderId: "32934944326",
   appId: "1:32934944326:web:a67d0e55186b990d55f447"
 };
@@ -41,47 +104,166 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// SIMPAN DATA
-window.tambah = async function() {
-  const nama = document.getElementById("nama").value;
-  const barcode = document.getElementById("barcode").value;
-  const harga = document.getElementById("harga").value;
+let data = [];
+let editId = null;
+let scanner = null;
 
-  if (!nama || !harga) {
-    alert("Nama & harga wajib!");
-    return;
-  }
-
-  await addDoc(collection(db, "barang"), {
-    nama,
-    barcode,
-    harga
-  });
-
-  alert("Berhasil disimpan!");
-}
-
-// CARI DATA
-window.cari = async function() {
-  const keyword = document.getElementById("cari").value.toLowerCase();
-
-  let hasil = "";
+// LOAD DATA
+async function loadData() {
+  data = [];
 
   const querySnapshot = await getDocs(collection(db, "barang"));
 
-  querySnapshot.forEach((doc) => {
-    const d = doc.data();
-
-    if (
-      d.nama.toLowerCase().includes(keyword) ||
-      (d.barcode && d.barcode.includes(keyword))
-    ) {
-      hasil += `${d.nama} - Rp ${d.harga}<br>`;
-    }
+  querySnapshot.forEach((docSnap) => {
+    data.push({
+      id: docSnap.id,
+      ...docSnap.data()
+    });
   });
 
-  document.getElementById("hasil").innerHTML = hasil || "Tidak ditemukan";
+  tampilkan();
 }
+
+// SIMPAN
+window.simpanData = async function () {
+  let nama = document.getElementById("nama").value.trim();
+  let barcode = document.getElementById("barcode").value.trim();
+  let harga = document.getElementById("harga").value;
+
+  if (!nama || !harga) {
+    alert("⚠️ Nama dan harga wajib!");
+    return;
+  }
+
+  if (editId === null) {
+    await addDoc(collection(db, "barang"), {
+      nama,
+      barcode,
+      harga
+    });
+  } else {
+    await updateDoc(doc(db, "barang", editId), {
+      nama,
+      barcode,
+      harga
+    });
+    editId = null;
+  }
+
+  resetForm();
+  loadData();
+};
+
+// EDIT
+window.editData = function (id) {
+  let d = data.find(x => x.id === id);
+
+  document.getElementById("nama").value = d.nama;
+  document.getElementById("barcode").value = d.barcode;
+  document.getElementById("harga").value = d.harga;
+
+  editId = id;
+};
+
+// HAPUS
+window.hapusData = async function (id) {
+  if (confirm("Hapus data ini?")) {
+    await deleteDoc(doc(db, "barang", id));
+    loadData();
+  }
+};
+
+// TAMPILKAN
+function tampilkan(list = data) {
+  let html = "";
+
+  list.forEach((d) => {
+    html += `
+      <div class="card">
+        <b>${d.nama}</b><br>
+        Barcode: ${d.barcode || "-"}<br>
+        Harga: Rp ${Number(d.harga).toLocaleString()}<br>
+
+        <button class="btn-kecil edit" onclick="editData('${d.id}')">Edit</button>
+        <button class="btn-kecil hapus" onclick="hapusData('${d.id}')">Hapus</button>
+      </div>
+    `;
+  });
+
+  document.getElementById("list").innerHTML = html;
+}
+
+// CARI
+window.cariData = function () {
+  let keyword = document.getElementById("cari").value.toLowerCase();
+
+  let hasil = data.filter(d =>
+    d.nama.toLowerCase().includes(keyword) ||
+    (d.barcode && d.barcode.includes(keyword))
+  );
+
+  tampilkan(hasil);
+};
+
+// RESET
+function resetForm() {
+  document.getElementById("nama").value = "";
+  document.getElementById("barcode").value = "";
+  document.getElementById("harga").value = "";
+}
+
+// SCAN INPUT
+window.scanBarcodeInput = function () {
+  mulaiScan((hasil) => {
+    document.getElementById("barcode").value = hasil;
+  });
+};
+
+// SCAN CARI
+window.startScanCari = function () {
+  mulaiScan((hasil) => {
+    document.getElementById("cari").value = hasil;
+    cariData();
+  });
+};
+
+// SCANNER
+function mulaiScan(callback) {
+  if (scanner) {
+    scanner.stop();
+    document.getElementById("reader").innerHTML = "";
+    scanner = null;
+    return;
+  }
+
+  scanner = new Html5Qrcode("reader");
+
+  Html5Qrcode.getCameras().then(devices => {
+    if (devices.length === 0) {
+      alert("❌ Kamera tidak tersedia");
+      return;
+    }
+
+    let cameraId = devices[devices.length - 1].id;
+
+    scanner.start(
+      cameraId,
+      { fps: 10, qrbox: 250 },
+      (decodedText) => {
+        callback(decodedText);
+
+        scanner.stop();
+        document.getElementById("reader").innerHTML = "";
+        scanner = null;
+      }
+    );
+  }).catch(() => {
+    alert("❌ Kamera gagal dibuka!\nGunakan Chrome & HTTPS");
+  });
+}
+
+// LOAD AWAL
+loadData();
 
 </script>
 
