@@ -1,220 +1,88 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Data Barang + Scan</title>
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-body {
-  font-family: Arial;
-  padding: 15px;
-  background: #121212;
-  color: white;
-}
-
-input, button {
-  width: 100%;
-  padding: 12px;
-  margin: 5px 0;
-  font-size: 16px;
-  border-radius: 6px;
-  border: none;
-}
-
-input {
-  background: #1e1e1e;
-  color: white;
-}
-
-button { background: #00c853; color: white; }
-.scan { background: #2196f3; }
-.edit { background: orange; }
-.hapus { background: red; }
-
-.card {
-  background: #1e1e1e;
-  padding: 10px;
-  margin-top: 10px;
-  border-radius: 8px;
-}
-
-.btn-kecil {
-  width: auto;
-  padding: 6px 10px;
-  margin-top: 5px;
-  margin-right: 5px;
-}
-
-#reader {
-  width: 100%;
-  margin-top: 10px;
-}
-</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kasir Sederhana</title>
 </head>
 
-<body>
+<body style="font-family:Arial; padding:20px">
 
 <h2>📦 Input Barang</h2>
 
-<input type="text" id="nama" placeholder="Nama Barang">
+<input id="nama" placeholder="Nama barang"><br><br>
+<input id="barcode" placeholder="Barcode (boleh kosong)"><br><br>
+<input id="harga" placeholder="Harga"><br><br>
 
-<input type="text" id="barcode" placeholder="Scan Barcode" readonly>
-<button class="scan" onclick="scanBarcodeInput()">📷 Scan untuk Barcode</button>
+<button onclick="tambah()">Simpan</button>
 
-<input type="number" id="harga" placeholder="Harga Jual">
-
-<button onclick="simpanData()">💾 Simpan Data</button>
+<hr>
 
 <h2>🔍 Cari Barang</h2>
 
-<input type="text" id="cari" placeholder="Cari nama / barcode" oninput="cariData()">
+<input id="cari" placeholder="Nama / barcode"><br><br>
+<button onclick="cari()">Cari</button>
 
-<button class="scan" onclick="startScanCari()">📷 Scan untuk Cari</button>
+<p id="hasil"></p>
 
-<div id="reader"></div>
+<script type="module">
 
-<h2>📋 Data Barang</h2>
-<div id="list"></div>
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-<script>
-let data = JSON.parse(localStorage.getItem("barang")) || [];
-let editIndex = -1;
-let scanner = null;
+const firebaseConfig = {
+  apiKey: "AIzaSyDmdbfP_OyG_PzMlsPUghbH13D5u2o6DhM",
+  authDomain: "een-store-atk.firebaseapp.com",
+  projectId: "een-store-atk",
+  storageBucket: "een-store-atk.firebasestorage.app",
+  messagingSenderId: "32934944326",
+  appId: "1:32934944326:web:a67d0e55186b990d55f447"
+};
 
-function simpanLocal() {
-  localStorage.setItem("barang", JSON.stringify(data));
-}
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-function tampilkan(list = data) {
-  let html = "";
-
-  list.forEach((d, i) => {
-    html += `
-      <div class="card">
-        <b>${d.nama}</b><br>
-        Barcode: ${d.barcode || "-"}<br>
-        Harga: Rp ${Number(d.harga).toLocaleString()}<br>
-
-        <button class="btn-kecil edit" onclick="editData(${i})">Edit</button>
-        <button class="btn-kecil hapus" onclick="hapusData(${i})">Hapus</button>
-      </div>
-    `;
-  });
-
-  document.getElementById("list").innerHTML = html;
-}
-
-function simpanData() {
-  let nama = document.getElementById("nama").value.trim();
-  let barcode = document.getElementById("barcode").value.trim();
+// SIMPAN
+window.tambah = async function() {
+  let nama = document.getElementById("nama").value;
+  let barcode = document.getElementById("barcode").value;
   let harga = document.getElementById("harga").value;
 
   if (!nama || !harga) {
-    alert("⚠️ Nama dan harga wajib diisi!");
+    alert("Nama & harga wajib!");
     return;
   }
 
-  if (editIndex === -1) {
-    data.push({ nama, barcode, harga });
-  } else {
-    data[editIndex] = { nama, barcode, harga };
-    editIndex = -1;
-  }
+  await addDoc(collection(db, "barang"), {
+    nama,
+    barcode,
+    harga
+  });
 
-  simpanLocal();
-  tampilkan();
-  resetForm();
+  alert("Tersimpan!");
 }
 
-function editData(index) {
-  let d = data[index];
-
-  document.getElementById("nama").value = d.nama;
-  document.getElementById("barcode").value = d.barcode;
-  document.getElementById("harga").value = d.harga;
-
-  editIndex = index;
-}
-
-function hapusData(index) {
-  if (confirm("Hapus data ini?")) {
-    data.splice(index, 1);
-    simpanLocal();
-    tampilkan();
-  }
-}
-
-function resetForm() {
-  document.getElementById("nama").value = "";
-  document.getElementById("barcode").value = "";
-  document.getElementById("harga").value = "";
-}
-
-function cariData() {
+// CARI
+window.cari = async function() {
   let keyword = document.getElementById("cari").value.toLowerCase();
 
-  let hasil = data.filter(d =>
-    d.nama.toLowerCase().includes(keyword) ||
-    d.barcode.includes(keyword)
-  );
+  let hasilText = "";
 
-  tampilkan(hasil);
-}
+  const querySnapshot = await getDocs(collection(db, "barang"));
 
-// SCAN UNTUK ISI BARCODE
-function scanBarcodeInput() {
-  mulaiScan((hasil) => {
-    document.getElementById("barcode").value = hasil;
-  });
-}
+  querySnapshot.forEach((doc) => {
+    let d = doc.data();
 
-// SCAN UNTUK CARI
-function startScanCari() {
-  mulaiScan((hasil) => {
-    document.getElementById("cari").value = hasil;
-    cariData();
-  });
-}
-
-// FUNGSI SCAN UMUM
-function mulaiScan(callback) {
-  if (scanner) {
-    scanner.stop();
-    document.getElementById("reader").innerHTML = "";
-    scanner = null;
-    return;
-  }
-
-  scanner = new Html5Qrcode("reader");
-
-  Html5Qrcode.getCameras().then(devices => {
-    if (devices.length === 0) {
-      alert("❌ Kamera tidak tersedia");
-      return;
+    if (
+      d.nama.toLowerCase().includes(keyword) ||
+      (d.barcode && d.barcode.includes(keyword))
+    ) {
+      hasilText += `${d.nama} - Rp ${d.harga}<br>`;
     }
-
-    let cameraId = devices[devices.length - 1].id;
-
-    scanner.start(
-      cameraId,
-      { fps: 10, qrbox: 250 },
-      (decodedText) => {
-        callback(decodedText);
-
-        scanner.stop();
-        document.getElementById("reader").innerHTML = "";
-        scanner = null;
-      }
-    );
-  }).catch(() => {
-    alert("❌ Kamera gagal dibuka!\nGunakan Chrome & HTTPS");
   });
+
+  document.getElementById("hasil").innerHTML = hasilText || "Tidak ditemukan";
 }
 
-tampilkan();
 </script>
 
 </body>
