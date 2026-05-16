@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kasir Sederhana</title>
+  <title>Kasir Online</title>
 </head>
 
 <body style="font-family:Arial; padding:20px">
@@ -41,11 +41,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// SIMPAN
+// SIMPAN DATA
 window.tambah = async function() {
-  let nama = document.getElementById("nama").value;
-  let barcode = document.getElementById("barcode").value;
-  let harga = document.getElementById("harga").value;
+  const nama = document.getElementById("nama").value;
+  const barcode = document.getElementById("barcode").value;
+  const harga = document.getElementById("harga").value;
 
   if (!nama || !harga) {
     alert("Nama & harga wajib!");
@@ -58,29 +58,29 @@ window.tambah = async function() {
     harga
   });
 
-  alert("Tersimpan!");
+  alert("Berhasil disimpan!");
 }
 
-// CARI
+// CARI DATA
 window.cari = async function() {
-  let keyword = document.getElementById("cari").value.toLowerCase();
+  const keyword = document.getElementById("cari").value.toLowerCase();
 
-  let hasilText = "";
+  let hasil = "";
 
   const querySnapshot = await getDocs(collection(db, "barang"));
 
   querySnapshot.forEach((doc) => {
-    let d = doc.data();
+    const d = doc.data();
 
     if (
       d.nama.toLowerCase().includes(keyword) ||
       (d.barcode && d.barcode.includes(keyword))
     ) {
-      hasilText += `${d.nama} - Rp ${d.harga}<br>`;
+      hasil += `${d.nama} - Rp ${d.harga}<br>`;
     }
   });
 
-  document.getElementById("hasil").innerHTML = hasilText || "Tidak ditemukan";
+  document.getElementById("hasil").innerHTML = hasil || "Tidak ditemukan";
 }
 
 </script>
