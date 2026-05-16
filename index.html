@@ -1,1 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Barang + Scan</title>
 
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+body {
+  font-family: Arial;
+  padding: 15px;
+  background: #121212;
+  color: white;
+}
+
+h2 {
+  margin-top: 20px;
+}
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin: 5px 0;
+  font-size: 16px;
+  border-radius: 6px;
+  border: none;
+}
+
+input {
+  background: #1e1e1e;
+  color: white;
+}
+
+button {
+  background: #00c853;
+  color: white;
+}
+
+.edit { background: orange; }
+.hapus { background: red; }
+.scan { background: #2196f3; }
+
+.card {
+  background: #1e1e1e;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 8px;
+}
+
+.btn-kecil {
+  width: auto;
+  padding: 6px 10px;
+  margin-top: 5px;
+  margin-right: 5px;
+  font-size: 14px;
+}
+
+#reader {
+  width: 100%;
+  margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>📦 Input Barang</h2>
+
+<input type="text" id="nama" placeholder="Nama Barang">
+<input type="text" id="barcode" placeholder="Barcode">
+<input type="number" id="harga" placeholder="Harga Jual">
+
+<button onclick="simpanData()">💾 Simpan Data</button>
+
+<h2>🔍 Cari Barang</h2>
+
+<input type="text" id="cari" placeholder="Ketik nama / scan barcode" oninput="cariData()">
+
+<button class="scan" onclick="startScan()">📷 Scan Barcode</button>
+
+<div id="reader"></div>
+
+<h2>📋 Data Barang</h2>
+<div id="list"></div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("barang")) || [];
+let editIndex = -1;
+let scanner = null;
+
+function simpanLocal() {
+  localStorage.setItem("barang", JSON.stringify(data));
+}
+
+function tampilkan(list = data) {
+  let html = "";
+
+  list.forEach((d, i) => {
+    html += `
+      <div class="card">
+        <b>${d.nama}</b><br>
+        Barcode: ${d.barcode}<br>
+        Harga: Rp ${Number(d.harga).toLocaleString()}<br>
+
+        <button class="btn-kecil edit" onclick="editData(${i})">Edit</button>
+        <button class="btn-kecil hapus" onclick="hapusData(${i})">Hapus</button>
+      </div>
+    `;
+  });
+
+  document.getElementById("list").innerHTML = html;
+}
+
+function simpanData() {
+  let nama = document.getElementById("nama").value.trim();
+  let barcode = document.getElementById("barcode").value.trim();
+  let harga = document.getElementById("harga").value;
+
+  if (!nama || !barcode || !harga) {
+    alert("⚠️ Semua data wajib diisi!");
+    return;
+  }
+
+  if (editIndex === -1) {
+    data.push({ nama, barcode, harga });
+  } else {
+    data[editIndex] = { nama, barcode, harga };
+    editIndex = -1;
+  }
+
+  simpanLocal();
+  tampilkan();
+  resetForm();
+}
+
+function editData(index) {
+  let d = data[index];
+
+  document.getElementById("nama").value = d.nama;
+  document.getElementById("barcode").value = d.barcode;
+  document.getElementById("harga").value = d.harga;
+
+  editIndex = index;
+}
+
+function hapusData(index) {
+  if (confirm("Hapus data ini?")) {
+    data.splice(index, 1);
+    simpanLocal();
+    tampilkan();
+  }
+}
+
+function resetForm() {
+  document.getElementById("nama").value = "";
+  document.getElementById("barcode").value = "";
+  document.getElementById("harga").value = "";
+}
+
+function cariData() {
+  let keyword = document.getElementById("cari").value.toLowerCase();
+
+  let hasil = data.filter(d =>
+    d.nama.toLowerCase().includes(keyword) ||
+    d.barcode.includes(keyword)
+  );
+
+  tampilkan(hasil);
+}
+
+function startScan() {
+  if (scanner) {
+    scanner.stop();
+    document.getElementById("reader").innerHTML = "";
+    scanner = null;
+    return;
+  }
+
+  scanner = new Html5Qrcode("reader");
+
+  Html5Qrcode.getCameras().then(devices => {
+    if (devices.length === 0) {
+      alert("❌ Kamera tidak ditemukan");
+      return;
+    }
+
+    let cameraId = devices[devices.length - 1].id;
+
+    scanner.start(
+      cameraId,
+      {
+        fps: 10,
+        qrbox: 250
+      },
+      (decodedText) => {
+        document.getElementById("cari").value = decodedText;
+        cariData();
+
+        scanner.stop();
+        document.getElementById("reader").innerHTML = "";
+        scanner = null;
+      }
+    );
+  }).catch(err => {
+    alert("❌ Kamera gagal dibuka!\n\nSolusi:\n- Gunakan Chrome\n- Aktifkan izin kamera\n- Gunakan HTTPS / hosting");
+  });
+}
+
+tampilkan();
+</script>
+
+</body>
+  </html>
